@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cybersecurity Dashboard v2</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-mark">CS</div>
+            <div>
+                <h1>Cybersecurity Dashboard</h1>
+                <p>Personal Website Security Scanner · v2.0</p>
+            </div>
+        </div>
+        <div class="status-pill"><span></span> Scanner Online</div>
+    </header>
+
+    <main class="page">
+        <section class="hero">
+            <div>
+                <p class="eyebrow">BASIC SECURITY ANALYSIS</p>
+                <h2>Scan a website's security configuration.</h2>
+                <p class="hero-text">
+                    Enter a public domain to check HTTPS, HTTP redirects, security
+                    headers, TLS certificate information, cookies and DNS resolution.
+                </p>
+            </div>
+
+            <form method="POST" class="scan-form">
+                <label for="domain">Website / Domain</label>
+                <div class="input-row">
+                    <input
+                        id="domain"
+                        type="text"
+                        name="domain"
+                        value="{{ submitted_domain }}"
+                        placeholder="example.com"
+                        autocomplete="off"
+                        required
+                    >
+                    <button type="submit">Scan Website <span>→</span></button>
+                </div>
+                <small>Example: example.com or https://example.com</small>
+            </form>
+        </section>
+
+        {% if error %}
+        <div class="alert error">
+            <strong>Scan could not be completed.</strong>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        {% if result %}
+        <section class="results">
+
+            <div class="result-heading">
+                <div>
+                    <p class="eyebrow">SCAN RESULTS</p>
+                    <h2>{{ result.domain }}</h2>
+                    {% if result.response_time_ms %}
+                    <p>Responded in {{ result.response_time_ms }} ms</p>
+                    {% endif %}
+                </div>
+
+                <div class="score-card">
+                    <div class="score-number">{{ result.score }}</div>
+                    <div>
+                        <span>Security Score</span>
+                        <strong class="risk-{{ result.risk|lower }}">{{ result.risk }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overview-grid">
+                <div class="metric-card">
+                    <span class="metric-label">Website Status</span>
+                    {% if result.reachable %}
+                    <strong class="ok">● Reachable</strong>
+                    {% else %}
+                    <strong class="bad">● Not Reachable</strong>
+                    {% endif %}
+                    <small>HTTP {{ result.status_code or "—" }}</small>
+                </div>
+
+                <div class="metric-card">
+                    <span class="metric-label">HTTPS</span>
+                    {% if result.https %}
+                    <strong class="ok">● Enabled</strong>
+                    {% else %}
+                    <strong class="bad">● Not Detected</strong>
+                    {% endif %}
+                    <small>Encrypted connection</small>
+                </div>
+
+                <div class="metric-card">
+                    <span class="metric-label">TLS Certificate</span>
+                    {% if result.ssl.valid %}
+                    <strong class="ok">● Valid</strong>
+                    {% elif result.ssl.available %}
+                    <strong class="warn">● Check Failed</strong>
+                    {% else %}
+                    <strong class="bad">● Unavailable</strong>
+                    {% endif %}
+                    <small>{{ result.ssl.expires }}</small>
+                </div>
+
+                <div class="metric-card">
+                    <span class="metric-label">DNS</span>
+                    {% if result.dns.resolved %}
+                    <strong class="ok">● Resolved</strong>
+                    {% else %}
+                    <strong class="bad">● Failed</strong>
+                    {% endif %}
+                    <small>{{ result.dns.ip or "—" }}</small>
+                </div>
+            </div>
+
+            <div class="two-column">
+
+                <section class="panel">
+                    <div class="panel-title">
+                        <div>
+                            <p class="eyebrow">WEB SECURITY</p>
+                            <h3>Security Headers</h3>
+                        </div>
+                        <span class="count">{{ result.header_count }}/{{ result.headers|length }}</span>
+                    </div>
+
+                    <div class="check-list">
+                        {% for item in result.headers %}
+                        <div class="check-row">
+                            <div class="check-icon {% if item.present %}check-ok{% else %}check-bad{% endif %}">
+                                {% if item.present %}✓{% else %}×{% endif %}
+                            </div>
+                            <div class="check-content">
+                                <strong>{{ item.name }}</strong>
+                                {% if item.present %}
+                                <small>{{ item.value|truncate(90) }}</small>
+                                {% else %}
+                                <small>Header not detected</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-title">
+                        <div>
+                            <p class="eyebrow">TRANSPORT SECURITY</p>
+                            <h3>HTTPS & TLS</h3>
+                        </div>
+                    </div>
+
+                    <div class="detail-list">
+                        <div><span>HTTPS</span><strong>{{ "Enabled" if result.https else "Not detected" }}</strong></div>
+                        <div><span>HTTP → HTTPS</span><strong>{{ "Redirects" if result.http_redirects_to_https else "Not detected" }}</strong></div>
+                        <div><span>Certificate</span><strong>{{ "Valid" if result.ssl.valid else "Needs review" }}</strong></div>
+                        <div><span>Issuer</span><strong>{{ result.ssl.issuer }}</strong></div>
+                        <div><span>Expires</span><strong>{{ result.ssl.expires }}</strong></div>
+                    </div>
+                </section>
+
+            </div>
+
+            <div class="two-column">
+
+                <section class="panel">
+                    <div class="panel-title">
+                        <div>
+                            <p class="eyebrow">SESSION SECURITY</p>
+                            <h3>Cookies</h3>
+                        </div>
+                        <span class="count">{{ result.cookie_count }}</span>
+                    </div>
+
+                    {% if result.cookie_count %}
+                    <div class="cookie-summary">
+                        {% set secure_count = result.cookies|selectattr("secure")|list|length %}
+                        {% set http_count = result.cookies|selectattr("httponly")|list|length %}
+                        {% set same_count = result.cookies|selectattr("samesite")|list|length %}
+
+                        <div><strong>{{ secure_count }}/{{ result.cookie_count }}</strong><span>Secure</span></div>
+                        <div><strong>{{ http_count }}/{{ result.cookie_count }}</strong><span>HttpOnly</span></div>
+                        <div><strong>{{ same_count }}/{{ result.cookie_count }}</strong><span>SameSite</span></div>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">No Set-Cookie headers were observed in the response.</div>
+                    {% endif %}
+                </section>
+
+                <section class="panel">
+                    <div class="panel-title">
+                        <div>
+                            <p class="eyebrow">DOMAIN INFORMATION</p>
+                            <h3>DNS & Server</h3>
+                        </div>
+                    </div>
+
+                    <div class="detail-list">
+                        <div><span>IPv4</span><strong>{{ result.dns.ip or "Unavailable" }}</strong></div>
+                        <div><span>Server</span><strong>{{ result.server or "Not disclosed" }}</strong></div>
+                        <div><span>Content Type</span><strong>{{ result.content_type or "Unavailable" }}</strong></div>
+                        <div><span>HTTP Status</span><strong>{{ result.status_code or "Unavailable" }}</strong></div>
+                    </div>
+                </section>
+
+            </div>
+
+            <section class="panel recommendations">
+                <div class="panel-title">
+                    <div>
+                        <p class="eyebrow">NEXT STEPS</p>
+                        <h3>Security Recommendations</h3>
+                    </div>
+                </div>
+
+                {% for recommendation in result.recommendations %}
+                <div class="recommendation">
+                    <span>→</span>
+                    <p>{{ recommendation }}</p>
+                </div>
+                {% endfor %}
+            </section>
+
+            <p class="disclaimer">
+                This dashboard performs basic, non-invasive configuration checks.
+                A clean result does not prove that a website is secure or free of vulnerabilities.
+            </p>
+        </section>
+        {% endif %}
+    </main>
+
+    <footer>
+        Personal Cybersecurity Dashboard · Built with Python, Flask and Requests
+    </footer>
+</body>
+</html>
